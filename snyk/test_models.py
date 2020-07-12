@@ -33,6 +33,22 @@ class TestOrganization(TestModels):
         ]
 
     @pytest.fixture
+    def project(self):
+        return {
+            "name": "atokeneduser/goof",
+            "id": "6d5813be-7e6d-4ab8-80c2-1e3e2a454545",
+            "created": "2018-10-29T09:50:54.014Z",
+            "origin": "cli",
+            "type": "npm",
+            "readOnly": "false",
+            "testFrequency": "daily",
+            "totalDependencies": 438,
+            "issueCountsBySeverity": {"low": 8, "high": 13, "medium": 15},
+            "lastTestedDate": "2019-02-05T06:21:00.000Z",
+            "browseUrl": "https://app.snyk.io/org/pysnyk-test-org/project/6d5813be-7e6d-4ab8-80c2-1e3e2a454545",
+        }
+
+    @pytest.fixture
     def blank_test(self):
         return {
             "ok": True,
@@ -139,6 +155,13 @@ class TestOrganization(TestModels):
         requests_mock.post("%s/test/npm" % base_url, json=blank_test)
         assert organization.test_packagejson(fake_file)
 
+    def test_packagejson_test_with_files(
+        self, organization, base_url, blank_test, fake_file, requests_mock
+    ):
+
+        requests_mock.post("%s/test/npm" % base_url, json=blank_test)
+        assert organization.test_packagejson(fake_file, fake_file)
+
     def test_gradlefile_test_with_file(
         self, organization, base_url, blank_test, fake_file, requests_mock
     ):
@@ -159,6 +182,20 @@ class TestOrganization(TestModels):
 
         requests_mock.post("%s/test/maven" % base_url, json=blank_test)
         assert organization.test_pom(fake_file)
+
+    def test_composer_with_files(
+        self, organization, base_url, blank_test, fake_file, requests_mock
+    ):
+
+        requests_mock.post("%s/test/composer" % base_url, json=blank_test)
+        assert organization.test_composer(fake_file, fake_file)
+
+    def test_yarn_with_files(
+        self, organization, base_url, blank_test, fake_file, requests_mock
+    ):
+
+        requests_mock.post("%s/test/yarn" % base_url, json=blank_test)
+        assert organization.test_yarn(fake_file, fake_file)
 
     def test_missing_package_test(self, organization, base_url, requests_mock):
         requests_mock.get("%s/test/rubygems/puppet/4.0.0" % base_url, status_code=404)
@@ -205,6 +242,28 @@ class TestOrganization(TestModels):
         assert len(payload["files"]) == 1
         assert payload["files"][0]["path"] == "Gemfile.lock"
 
+    def test_invite(self, organization, requests_mock):
+        invite_matcher = re.compile("invite$")
+        requests_mock.post(
+            invite_matcher, json={"email": "example@example.com", "isAdmin": False}
+        )
+        assert organization.invite("example@example.com")
+
+    def test_invite_admin(self, organization, requests_mock):
+        invite_matcher = re.compile("invite$")
+        requests_mock.post(
+            invite_matcher, json={"email": "example@example.com", "isAdmin": True}
+        )
+        assert organization.invite("example@example.com", admin=True)
+
+    def test_get_project(self, organization, project, requests_mock):
+        matcher = re.compile("projects/6d5813be-7e6d-4ab8-80c2-1e3e2a454545$")
+        requests_mock.get(matcher, json=project)
+        assert (
+            "atokeneduser/goof"
+            == organization.projects.get("6d5813be-7e6d-4ab8-80c2-1e3e2a454545").name
+        )
+
 
 class TestProject(TestModels):
     @pytest.fixture
@@ -236,6 +295,26 @@ class TestProject(TestModels):
         requests_mock.delete(project_url, status_code=500)
         with pytest.raises(SnykError):
             project.delete()
+
+    def test_add_tag(self, project, project_url, requests_mock):
+        requests_mock.post(
+            "%s/tags" % project_url, json={"key": "key", "value": "value"}
+        )
+        assert project.tags.add("key", "value")
+
+    def test_delete_tag(self, project, project_url, requests_mock):
+        requests_mock.post(
+            "%s/tags/remove" % project_url, json={"key": "key", "value": "value"}
+        )
+        assert project.tags.delete("key", "value")
+
+    def test_tags(self, project, project_url, requests_mock):
+        assert [] == project.tags.all()
+
+    def test_tags_cache(self, project, project_url, requests_mock):
+        tags = [{"key": "key", "value": "value"}]
+        project._tags = tags
+        assert tags == project.tags.all()
 
     def test_empty_settings(self, project, project_url, requests_mock):
         requests_mock.get("%s/settings" % project_url, json={})

@@ -83,7 +83,7 @@ client.projects.all()
 
 The `snyk.models.Project` object has the following useful properties and methods:
 
-* `delete()` - deletes the project in question. We careful as this will delete all associated data too
+* `delete()` - deletes the project in question. Be careful as this will delete all associated data too
 * `dependencies` - returns a Manager for packages in use in this project
 * `dependency_graph` - returns a `snyk.models.DependencyGraph` object which represents the full dependency graph of package dependencies
 * `ignores` - returns a Manager for ignore rules set on the project
@@ -91,8 +91,14 @@ The `snyk.models.Project` object has the following useful properties and methods
 * `jira_issues` - returns a Manager with access to any associated Jira issues
 * `licenses` - returns a Manager for licenses currently in use by this project
 * `settings` - returns a Manager for interacting with the current project settings  
+* `tags` - returns a Manager for interacting with the current project tags 
 
-Note that the `settings` Manager can also be used to update settings like so, assumibg you have a `snyk.models.Project` object in the variable `project`.
+You can add and delete tags using the manager:
+
+* `tags.add(key, value)` - adds a tag with the provided key/value pair to the project
+* `tags.delete(key, value)` - deletes a tag with the provided key/value pair from the project
+
+Note that the `settings` Manager can also be used to update settings like so, assuming you have a `snyk.models.Project` object in the variable `project`.
 
 ```python
 project.settings.update(pull_request_test_enabled=True)
@@ -145,10 +151,12 @@ As well as testing individual packages you can also test all packages found in v
 
 * `test_pipfile(<file-handle-or-string>)` - returns an IssueSet for all Python dependencies in a `Pipfile` 
 * `test_gemfilelock(<file-handle-or-string>)` - returns an IssueSet for all Ruby dependencies in a `Gemfile`
-* `test_packagejson(<file-handle-or-string>)` - returns an IssueSet for all Javascript dependencies in a `package.json` file 
+* `test_packagejson(<file-handle-or-string>, (<lock-file-handle-or-string>))` - returns an IssueSet for all Javascript dependencies in a `package.json` file. Optionally takes a `package.lock` file
 * `test_gradlefile(<file-handle-or-string>)` - returns an IssueSet for all dependencies in a `Gradlefile` 
 * `test_sbt(<file-handle-or-string>)` - returns an IssueSet for all dependencies defined in a `.sbt` file 
 * `test_pom(<file-handle-or-string>)` - returns an IssueSet for all dependencies in a Maven `pom.xml` file
+* `test_yarn(<file-handle-or-string>, <lock-file-handle-or-string>)` - returns an IssueSet for all dependencies in Yarn `package.json` and `yarn.lock` files
+* `test_composer(<file-handle-or-string>, <lock-file-handle-or-string>)` - returns an IssueSet for all dependencies in Composer `composer.json` and `composer.lock` files
 
 For example, here we are testing a Python `Pipfile`.
 
@@ -157,6 +165,23 @@ For example, here we are testing a Python `Pipfile`.
 >>> file = open("Pipfile")
 >>> org.test_pipfile(file)
 ```
+
+### Inviting new users
+
+You can invite new users to the organization via the API.
+
+```python
+>>> org = client.organizations.first()
+>>> org.invite("example@example.com")
+```
+
+You can also invite new users as administrators:
+
+```python
+>>> org = client.organizations.first()
+>>> org.invite("example@example.com", admin=True)
+```
+
 
 ### Low-level client
 

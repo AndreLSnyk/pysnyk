@@ -55,6 +55,7 @@ class Manager(abc.ABC):
                 "IssueSet": IssueSetManager,
                 "Integration": IntegrationManager,
                 "IntegrationSetting": IntegrationSettingManager,
+                "Tag": TagManager,
             }[key]
             return manager(klass, client, instance)
         except KeyError:
@@ -109,6 +110,27 @@ class OrganizationManager(Manager):
         return orgs
 
 
+class TagManager(Manager):
+    def all(self):
+        return self.instance._tags
+
+    def add(self, key, value) -> bool:
+        tag = {"key": key, "value": value}
+        path = "org/%s/project/%s/tags" % (
+            self.instance.organization.id,
+            self.instance.id,
+        )
+        return bool(self.client.post(path, tag))
+
+    def delete(self, key, value) -> bool:
+        tag = {"key": key, "value": value}
+        path = "org/%s/project/%s/tags/remove" % (
+            self.instance.organization.id,
+            self.instance.id,
+        )
+        return bool(self.client.post(path, tag))
+
+
 class ProjectManager(Manager):
     def all(self):
         projects = []
@@ -118,6 +140,13 @@ class ProjectManager(Manager):
             if "projects" in resp.json():
                 for project_data in resp.json()["projects"]:
                     project_data["organization"] = self.instance.to_dict()
+                    # We move tags to _tags as a cache, to avoid the need for additional requests
+                    # when working with tags. We want tags to be the manager
+                    try:
+                        project_data["_tags"] = project_data["tags"]
+                        del project_data["tags"]
+                    except KeyError:
+                        pass
                     projects.append(self.klass.from_dict(project_data))
             for x in projects:
                 x.organization = self.instance
@@ -125,6 +154,16 @@ class ProjectManager(Manager):
             for org in self.client.organizations.all():
                 projects.extend(org.projects.all())
         return projects
+
+    def get(self, id: str):
+        if self.instance:
+            path = "org/%s/projects/%s" % (self.instance.id, id)
+            resp = self.client.get(path)
+            project_data = resp.json()
+            project_data["organization"] = self.instance.to_dict()
+            return self.klass.from_dict(project_data)
+        else:
+            return super().get(id)
 
 
 class MemberManager(Manager):
